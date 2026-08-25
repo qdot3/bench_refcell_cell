@@ -29,45 +29,79 @@ fn cache_info() -> String {
     format!("L1: {l1_size}, L1 Line: {l1_line_size}, word: {word_size}")
 }
 
-fn add1_cell<const N: usize>(src: &Cell<[usize; N]>) {
-    let mut val = src.get();
-    val.iter_mut().for_each(|v| {
-        *v = v.wrapping_add(
-            // avoid auto-vectorization
-            black_box(1),
-        )
-    });
-    src.set(val);
+#[derive(Clone, Copy)]
+struct Head<const N: usize> {
+    val: usize,
+    _pad: [usize; N],
 }
 
-fn add1_refcell<const N: usize>(src: &RefCell<[usize; N]>) {
-    let mut val = src.borrow_mut();
-    val.iter_mut()
-        .for_each(|v| *v = v.wrapping_add(black_box(1)));
+impl<const N: usize> Head<N> {
+    fn new(val: usize) -> Self {
+        Self { val, _pad: [0; _] }
+    }
+
+    fn add(&mut self, val: usize) {
+        self.val += val
+    }
 }
 
-fn add1(c: &mut Criterion) {
-    let mut b = c.benchmark_group(format!("Add 1 (words vs time) ({})", cache_info()));
+#[derive(Clone, Copy)]
+struct Tail<const N: usize> {
+    _pad: [usize; N],
+    val: usize,
+}
+
+impl<const N: usize> Tail<N> {
+    fn new(val: usize) -> Self {
+        Self { val, _pad: [0; _] }
+    }
+
+    fn add(&mut self, val: usize) {
+        self.val += val
+    }
+}
+
+fn partial(c: &mut Criterion) {
+    let mut b = c.benchmark_group(format!(
+        "Partial (padding [words] vs time) ({})",
+        cache_info()
+    ));
 
     macro_rules! bench {
-        ($( $e:expr ),*) => {$(
-            let src = [0; $e];
-
-            let cell = Cell::new(src);
-            b.bench_with_input(BenchmarkId::new("Cell", $e), &cell, |b, i| {
-                b.iter(|| add1_cell(black_box(i)))
+        ($( $e:expr ),*$(,)?) => {$(
+            let cell = Cell::new(Head::<$e>::new(0));
+            b.bench_with_input(BenchmarkId::new("Cell (Head)", $e), &cell, |b, i| {
+                b.iter(|| {
+                    let mut val = i.get();
+                    val.add(black_box(1));
+                    i.set(val);
+                })
             });
 
-            let refcell = RefCell::new(src);
-            b.bench_with_input(BenchmarkId::new("RefCell", $e), &refcell, |b, i| {
-                b.iter(|| add1_refcell(black_box(i)))
+            let refcell = RefCell::new(Head::<$e>::new(0));
+            b.bench_with_input(BenchmarkId::new("RefCell (Head)", $e), &refcell, |b, i| {
+                b.iter(|| i.borrow_mut().add(black_box(1)))
+            });
+
+            let cell = Cell::new(Tail::<$e>::new(0));
+            b.bench_with_input(BenchmarkId::new("Cell (Tail)", $e), &cell, |b, i| {
+                b.iter(|| {
+                    let mut val = i.get();
+                    val.add(black_box(1));
+                    i.set(val);
+                })
+            });
+
+            let refcell = RefCell::new(Tail::<$e>::new(0));
+            b.bench_with_input(BenchmarkId::new("RefCell (Tail)", $e), &refcell, |b, i| {
+                b.iter(|| i.borrow_mut().add(black_box(1)))
             });
         )*};
     }
     bench!(
-        2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
     );
 }
 
-criterion_group!(benches, add1);
+criterion_group!(benches, partial);
 criterion_main!(benches);
