@@ -30,6 +30,7 @@ fn cache_info() -> String {
 }
 
 #[derive(Clone, Copy)]
+#[repr(C)]
 struct Head<const N: usize> {
     val: usize,
     _pad: [usize; N],
@@ -46,6 +47,7 @@ impl<const N: usize> Head<N> {
 }
 
 #[derive(Clone, Copy)]
+#[repr(C)]
 struct Tail<const N: usize> {
     _pad: [usize; N],
     val: usize,
