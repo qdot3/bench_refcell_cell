@@ -4,10 +4,31 @@ use std::{
     time::Duration,
 };
 
+use cache_size::{l1_cache_line_size, l1_cache_size};
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 
 fn add_1(c: &mut Criterion) {
-    let mut b = c.benchmark_group("Add 1 (words vs time)");
+    let l1_size = match l1_cache_size() {
+        Some(n) => {
+            if n.trailing_zeros() >= 20 {
+                format!("{} MiB", n >> 20)
+            } else if n.trailing_zeros() >= 10 {
+                format!("{} KiB", n >> 10)
+            } else {
+                format!("{} B", n)
+            }
+        }
+        None => "NA".to_string(),
+    };
+    let l1_line_size = match l1_cache_line_size() {
+        Some(n) => format!("{n} B"),
+        None => "NA".to_string(),
+    };
+    let word_size = format!("{} B", std::mem::size_of::<usize>());
+
+    let mut b = c.benchmark_group(format!(
+        "Add 1 (words vs time) (L1: {l1_size}, L1 Line: {l1_line_size}, word: {word_size})"
+    ));
     b.sample_size(500).measurement_time(Duration::from_secs(10));
 
     macro_rules! bench {
