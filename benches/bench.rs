@@ -7,7 +7,8 @@ use std::{
 use cache_size::{l1_cache_line_size, l1_cache_size};
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 
-fn add_1(c: &mut Criterion) {
+/// FIXME: This supports x86 architectures only for now
+fn cache_info() -> String {
     let l1_size = match l1_cache_size() {
         Some(n) => {
             if n.trailing_zeros() >= 20 {
@@ -26,9 +27,11 @@ fn add_1(c: &mut Criterion) {
     };
     let word_size = format!("{} B", std::mem::size_of::<usize>());
 
-    let mut b = c.benchmark_group(format!(
-        "Add 1 (words vs time) (L1: {l1_size}, L1 Line: {l1_line_size}, word: {word_size})"
-    ));
+    format!("L1: {l1_size}, L1 Line: {l1_line_size}, word: {word_size}")
+}
+
+fn add_1(c: &mut Criterion) {
+    let mut b = c.benchmark_group(format!("Add 1 (words vs time) ({})", cache_info()));
     b.sample_size(500).measurement_time(Duration::from_secs(10));
 
     macro_rules! bench {
