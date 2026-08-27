@@ -7,7 +7,11 @@ edition = "2024"
 criterion = "0.8.2"
 
 [[bench]]
-name = "bench"
+name = "partial"
+harness = false
+
+[[bench]]
+name = "full"
 harness = false
 
 [dependencies]
